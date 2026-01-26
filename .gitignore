@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+data/processed/
+ensemble_model/
+*.pkl
+*.npz
+*.png
