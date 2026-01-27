@@ -10,3 +10,6 @@ lightgbm
 catboost
 matplotlib
 openpyxl
+openai
+faiss-cpu
+pymupdf

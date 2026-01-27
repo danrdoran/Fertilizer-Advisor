@@ -11,3 +11,5 @@ ensemble_model/*
 !ensemble_model/propensity_model.pkl
 
 results/*
+
+**/.rag_cache/
