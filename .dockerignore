@@ -1,24 +1,39 @@
 # Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+
+**pycache**/
+_.pyc
+_.pyo
+\*.pyd
 
 # Virtualenvs
+
 .venv/
 venv/
 ENV/
 
 # OS / IDE
+
 .DS_Store
 .idea/
 .vscode/
 
 # Git
+
 .git/
 .gitignore
 
 # Caches
+
 .pytest_cache/
 .mypy_cache/
 .cache/
+
+# RAG cache (generated)
+
+scripts/.rag_cache/
+.rag_cache/
+\*\*/.rag_cache/
+
+# Secrets
+
+.env

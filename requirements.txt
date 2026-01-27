@@ -13,3 +13,4 @@ openpyxl
 openai
 faiss-cpu
 pymupdf
+dotenv
