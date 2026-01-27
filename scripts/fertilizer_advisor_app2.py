@@ -108,7 +108,7 @@ TRANSLATIONS = {
         "RECOMMENDED": "Recommended",
         "DIFFERENCE": "Difference",
         "BASELINE_NOTE": "**Note**: The baseline represents the modal (most common) supported action from the behavior policy (π₀) for your specific field conditions. All comparisons shown are model-based predictions, not causal guarantees.",
-        "ALTERNATIVES": "🎯 Alternative Options",
+        "ALTERNATIVES": "Alternative Options",
         "BEST": "⭐ Best",
         "BETTER": "👌 Better",
         "GOOD": "👍 Good",
@@ -215,7 +215,7 @@ TRANSLATIONS = {
         "RECOMMENDED": "Recomendado",
         "DIFFERENCE": "Diferencia",
         "BASELINE_NOTE": "**Nota**: La línea base es la acción modal (más común) de la política de comportamiento (π₀) para tus condiciones. Todas las comparaciones son predicciones del modelo, no garantías causales.",
-        "ALTERNATIVES": "🎯 Opciones alternativas",
+        "ALTERNATIVES": "Opciones alternativas",
         "BEST": "⭐ Mejor",
         "BETTER": "👌 Muy buena",
         "GOOD": "👍 Buena",
@@ -905,7 +905,6 @@ def main():
                     hide_index=True,
                     use_container_width=False,
                     width=900,
-                    height=220,
                 )
 
                 st.caption(t(lang, "BASELINE_NOTE"))
@@ -949,7 +948,6 @@ def main():
                 hide_index=True,              
                 use_container_width=False,    
                 width=1200,                  
-                height=170,                   
             )
 
             # Technical details
@@ -973,21 +971,24 @@ def main():
     # Consult Technical Documentation (RAG)
     # =============================
     st.divider()
-    # st.header(t(lang, "DOCS_HEADER"))
-    # st.caption(t(lang, "DOCS_CAPTION"))
 
-    # OpenAI client (expects OPENAI_API_KEY in env)
     def _get_openai_client():
         return OpenAI()
 
     from pathlib import Path
+    import json
+    import re
+
     REPO_ROOT = Path(__file__).resolve().parents[1]
     pdf_path = REPO_ROOT / "docs" / "agenda-tecnica-chiapas.pdf"
     cache_dir = Path(__file__).parent / ".rag_cache"
 
-    # Controls
     top_k = 6
     force_rebuild = False
+
+    def _strip_simple_md(s: str) -> str:
+        # CSS content can't render markdown; remove emphasis markers.
+        return re.sub(r"(\*\*|\*|__|_|`)", "", s or "")
 
     if not pdf_path.exists():
         st.error(t(lang, "DOCS_MISSING_PDF", pdf_path=pdf_path))
@@ -1007,7 +1008,6 @@ def main():
                 force_rebuild=force_rebuild,
             )
 
-        # Chat state
         if "doc_chat" not in st.session_state:
             st.session_state["doc_chat"] = []
 
@@ -1016,46 +1016,85 @@ def main():
             with st.chat_message(m["role"]):
                 st.write(m["content"])
 
-        import json
-        docs_title = t(lang, "DOCS_HEADER")
-        docs_caption = t(lang, "DOCS_CAPTION")
+        # ---- Pinned header + caption ABOVE the pinned chat input ----
+        docs_title = _strip_simple_md(t(lang, "DOCS_HEADER"))
+        docs_caption = _strip_simple_md(t(lang, "DOCS_CAPTION"))
 
-        # JSON-escape the strings so quotes/newlines won't break CSS
-        docs_title_css = json.dumps(docs_title)[1:-1]
-        docs_caption_css = json.dumps(docs_caption)[1:-1]
+        # keep emoji as real unicode (prevents \ud83d\udcda showing up)
+        docs_title_css = json.dumps(docs_title, ensure_ascii=False)[1:-1]
+        docs_caption_css = json.dumps(docs_caption, ensure_ascii=False)[1:-1]
 
         st.markdown(
             f"""
-        <style>
-        /* Add room so your last chat messages aren't hidden behind the now-taller pinned area */
-        div[data-testid="stAppViewContainer"] .main .block-container {{
-        padding-bottom: 10rem;
-        }}
+    <style>
+    /* Give the page enough bottom padding so last messages aren't hidden */
+    div[data-testid="stAppViewContainer"] .main .block-container {{
+    padding-bottom: 12rem;
+    }}
 
-        /* Inject your docs header/caption ABOVE the pinned chat input */
-        div[data-testid="stChatInput"]::before {{
-        content: "{docs_title_css}\\A{docs_caption_css}";
-        display: block;
-        white-space: pre-line;
-        padding: 0.75rem 0.75rem 0.5rem 0.75rem;
-        margin-bottom: 0.25rem;
-        border-top: 1px solid rgba(49, 51, 63, 0.2);
-        background: var(--background-color);
-        font-size: 0.95rem;
-        line-height: 1.25rem;
-        }}
+    /*
+    Key fix:
+    ::before/::after become flex items on a flex container, which is why your input got pushed to the right.
+    Force the chat input container into a column layout so everything stacks vertically.
+    */
+    div[data-testid="stChatInput"] {{
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+    }}
 
-        /* Optional: make the title line feel more "header-y" (applies to both lines, sadly) */
-        div[data-testid="stChatInput"]::before {{
-        font-weight: 600;
-        }}
-        </style>
-        """,
+    /* Title line */
+    div[data-testid="stChatInput"]::before {{
+    content: "{docs_title_css}";
+    order: 0;
+    display: block;
+    padding: 0.55rem 0.75rem 0 0.75rem;
+    background: var(--background-color);
+    font-size: 1.0rem;
+    line-height: 1.25rem;
+    font-weight: 700;
+    }}
+
+    /* Caption line (smaller, not bold) */
+    div[data-testid="stChatInput"]::after {{
+    content: "{docs_caption_css}";
+    order: 1;
+    display: block;
+    padding: 0 0.75rem 0.35rem 0.75rem;
+    margin-bottom: 0.1rem;
+    border-bottom: 1px solid rgba(49, 51, 63, 0.20);
+    background: var(--background-color);
+    font-size: 0.85rem;
+    line-height: 1.15rem;
+    font-weight: 400;
+    opacity: 0.85;
+    }}
+
+    /* Make sure the actual input form is full-width and comes after title/caption */
+    div[data-testid="stChatInput"] form {{
+    order: 2;
+    width: 100%;
+    }}
+
+    /* Tame the placeholder so it doesn't look like a second header */
+    div[data-testid="stChatInput"] textarea::placeholder {{
+    font-size: 0.85rem;
+    font-weight: 400;
+    opacity: 0.75;
+    }}
+
+    /* Optional: reduce chat input minimum height a touch */
+    div[data-testid="stChatInput"] textarea {{
+    min-height: 2.6rem;
+    }}
+    </style>
+    """,
             unsafe_allow_html=True,
         )
 
-
-        user_q = st.chat_input(t(lang, "DOCS_CHAT_INPUT"))
+        # Keep Streamlit's pinned chat behavior
+        user_q = st.chat_input(t(lang, "DOCS_CHAT_INPUT"), key="docs_chat_input")
         if user_q:
             st.session_state["doc_chat"].append({"role": "user", "content": user_q})
 
@@ -1068,7 +1107,7 @@ def main():
                     chat_model=DEFAULT_CHAT_MODEL,
                     question=user_q,
                     retrieved=hits,
-                    lang=lang,  # 'es' / 'en'
+                    lang=lang,
                     reco_context=reco_ctx,
                 )
 
@@ -1078,7 +1117,6 @@ def main():
         # Show sources used for the most recent turn
         if st.session_state["doc_chat"]:
             with st.expander(t(lang, "DOCS_SHOW_PASSAGES")):
-                # Re-run retrieval for the last user message just for display
                 last_user = next(
                     (m["content"] for m in reversed(st.session_state["doc_chat"]) if m["role"] == "user"),
                     None,
@@ -1086,14 +1124,7 @@ def main():
                 if last_user:
                     hits = retrieve(store=store, client=client, query=last_user, top_k=top_k)
                     for h in hits:
-                        st.markdown(
-                            t(
-                                lang,
-                                "DOCS_PASSAGE_META",
-                                page=h["page"],
-                                score=h["score"],
-                            )
-                        )
+                        st.markdown(t(lang, "DOCS_PASSAGE_META", page=h["page"], score=h["score"]))
                         st.write(h["text"])
                         st.markdown("---")
             

@@ -13,3 +13,5 @@ ensemble_model/*
 results/*
 
 **/.rag_cache/
+
+.env
