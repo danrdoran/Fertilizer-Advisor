@@ -1,13 +1,15 @@
 # Fertilizer-Advisor
 
-End-to-end pipeline for:
+This repo provides an end-to-end pipeline for:
 
-1. preprocessing agronomic maize field data,
-2. training a reward model and behavior-policy (π₀) model,
-3. learning and evaluating a new fertilizer policy offline, and
-4. running a Streamlit app that recommends N–P₂O₅–K₂O rates.
+1. Preprocessing agronomic maize field data,
+2. Training a reward crop-profit model and behavior policy (π₀) model,
+3. Learning and evaluating a new fertilizer policy offline, and
+4. Running a decision support app that recommends N–P₂O₅–K₂O rates.
 
-> **Note:** The Streamlit app **does not require** `learn_and_evaluate_policy.py` to have been run, but it **does** require the outputs of preprocessing and model training.
+> **Note:** Running the app requires an OPENAI_API_KEY, as it utilizes LLM calls in a RAG framework to give further maize management guidance grounded in region-specific technical documentation.
+
+See docs/paper.pdf to read more about the project.
 
 ---
 
@@ -46,6 +48,7 @@ python scripts/learn_and_evaluate_policy.py \
   --by_year_csv results/ope_by_year.csv \
   --out_policy_csv results/ope_by_year_policy_rows.csv
 
-# 4) Run the app
-streamlit run scripts/fertilizer_advisor_app.py
+# 4) Build & run the app with Docker (Make sure OPENAI_API_KEY is set in a local .env file)
+docker build -t fertilizer-advisor .
+docker run --rm -p 8501:8501 --env-file .env fertilizer-advisor
 ```
