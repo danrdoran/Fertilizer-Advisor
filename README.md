@@ -14,7 +14,7 @@ This is a research prototype. Reported policy gains are estimates from historica
 
 [![Fertilizer Advisor prototype showing recommended N, P₂O₅, and K₂O rates, expected yield, and predicted changes relative to the baseline.](docs/images/fertilizer-advisor-recommendation.png)](https://fertilizer-advisor-ndwdrwk9r6jvjyf2cwxqv6.streamlit.app/)
 
-_Example output from the research prototype. The displayed gains are model-based predictions relative to the modal supported baseline action for the entered conditions, not field-validated effects._
+_Example output. The displayed gains are model-based predictions relative to the modal supported baseline action for the entered conditions, not field-validated effects._
 
 ## Data and sources
 
