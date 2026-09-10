@@ -6,7 +6,7 @@ An offline contextual-bandit research project and bilingual decision-support pro
 
 [Explore the app](https://fertilizer-advisor-ndwdrwk9r6jvjyf2cwxqv6.streamlit.app/) · [Read the doctoral praxis](docs/paper.pdf) · [Project page](https://danrdoran.github.io/Fertilizer-Advisor/)
 
-The central question is economic as well as agronomic: **which historically supported fertilizer combination offers the highest expected profit for a particular field, rather than simply the highest predicted yield?**
+The central question is economic as well as agronomic: **which historically supported fertilizer combination offers the highest expected profit for a particular field?**
 
 This is a research prototype. Reported policy gains are estimates from historical observational data, not realized gains from a prospective deployment or randomized field trial.
 
@@ -14,7 +14,7 @@ This is a research prototype. Reported policy gains are estimates from historica
 
 [![Fertilizer Advisor prototype showing recommended N, P₂O₅, and K₂O rates, expected yield, and predicted changes relative to the baseline.](docs/images/fertilizer-advisor-recommendation.png)](https://fertilizer-advisor-ndwdrwk9r6jvjyf2cwxqv6.streamlit.app/)
 
-_Example output. The displayed gains are model-based predictions relative to the modal supported baseline action for the entered conditions, not field-validated effects._
+_Example output. The displayed gains are model-based predictions relative to the modal supported baseline action for the entered conditions._
 
 ## Data and sources
 
