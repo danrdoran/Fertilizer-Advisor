@@ -2,11 +2,9 @@
 
 ## Causal machine learning for fertilizer recommendations
 
-An offline contextual-bandit research project and bilingual decision-support prototype for maize production in Chiapas, Mexico. The project uses historical field data to learn fertilizer recommendations that account for differences in soil, weather, and management conditions, and evaluates their expected economic performance before prospective field testing.
+An offline contextual bandit research project and bilingual decision support prototype for maize production in Chiapas, Mexico. The project uses historical field data to learn evidence-based, site-specific fertilizer recommendations that account for differences in soil, weather, and management conditions, and evaluates their expected economic performance.
 
 [Explore the app](https://fertilizer-advisor-ndwdrwk9r6jvjyf2cwxqv6.streamlit.app/) · [Read the doctoral praxis](docs/paper.pdf) · [Project page](https://danrdoran.github.io/Fertilizer-Advisor/)
-
-The central question is economic as well as agronomic: **which historically supported fertilizer combination offers the highest expected profit for a particular field?**
 
 This is a research prototype. Reported policy gains are estimates from historical observational data, not realized gains from a prospective deployment or randomized field trial.
 
