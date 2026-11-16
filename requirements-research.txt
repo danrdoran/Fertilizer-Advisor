@@ -1,0 +1,14 @@
+# Research CLI and regression checks; tested with Python 3.12.
+# Install in a separate virtual environment from the Streamlit application.
+numpy==2.3.5
+pandas==2.2.3
+scipy==1.17.0
+scikit-learn==1.6.1
+xgboost==3.0.2
+lightgbm==4.6.0
+catboost==1.2.8
+arviz==0.22.0
+joblib==1.5.3
+threadpoolctl==3.6.0
+openpyxl==3.1.5
+matplotlib==3.10.8

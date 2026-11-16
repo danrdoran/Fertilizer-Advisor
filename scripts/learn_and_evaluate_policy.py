@@ -2,7 +2,8 @@
 What this script does:
 
 Runs by-year offline policy evaluation for a contextual bandit fertilizer policy.
-For each evaluation year, it trains reward and behavior-policy (π0) models on prior years, discretizes
+By default, each evaluation year trains models on prior years only. Explicit opt-in
+allows retrospective same-year cross-fitting. The script discretizes
 N–P₂O₅–K₂O actions into supported bins, constructs a safe target policy π1 (greedy on predicted
 yield/profit with optional ε-exploration and π0-mixing, constrained by support and SPIBB-style rules),
 and estimates π1 vs π0 using self-normalized doubly robust (SNDR) and doubly robust (DR) OPE with
@@ -19,11 +20,11 @@ from typing import Optional, Tuple, List, Dict
 import numpy as np
 import pandas as pd
 
-try:
-    import arviz as az  # PSIS
-    _HAS_ARVIZ = True
-except Exception:
-    _HAS_ARVIZ = False
+from ope_statistics import (
+    psis_khat_from_weights, psis_smooth_weights, require_psis,
+    make_cluster_boot_indices_from_keys, median_impute_from_training,
+    _sndr_value, _dr_value,
+)
 
 from bandit_models import (
     SEED,
@@ -62,7 +63,7 @@ class OPEConfig:
     # Cross-fitting and recency
     recency_lambda: float = 0.10
     cf_k: int = 5
-    cf_use_eval: bool = True
+    cf_use_eval: bool = False
 
     # Bootstrap
     n_bootstrap: int = 1000
@@ -90,52 +91,9 @@ def ess(weights: np.ndarray) -> float:
     s1 = float(np.sum(w)); s2 = float(np.sum(w ** 2))
     return (s1 * s1) / (s2 + 1e-12)
 
-# --- PSIS helpers ---
-
-def psis_khat_from_weights(raw_weights: np.ndarray) -> float:
-    w = np.asarray(raw_weights, float)
-    w = w[np.isfinite(w) & (w > 0.0)]
-    if w.size < 5 or not _HAS_ARVIZ:
-        return float("nan")
-    try:
-        _, k = az.psislw(np.log(w))
-        return float(np.asarray(k).squeeze())
-    except Exception:
-        return float("nan")
-
-def psis_smooth_weights(raw_weights: np.ndarray) -> Tuple[np.ndarray, float]:
-    w = np.asarray(raw_weights, float)
-    w = np.clip(w, 1e-300, np.inf)
-    if not _HAS_ARVIZ:
-        return w, float("nan")
-    lw_smooth, k = az.psislw(np.log(w))
-    return np.exp(np.asarray(lw_smooth)), float(np.asarray(k))
-
-# Bootstrap cluster indices by site -------------------------------------------
-
-def make_cluster_boot_indices_from_keys(site_keys: np.ndarray, B: int, rng: Optional[np.random.Generator] = None) -> List[np.ndarray]:
-    rng = rng or np.random.default_rng(SEED)
-    uniq, inv = np.unique(site_keys, return_inverse=True)
-    per = {i: np.where(inv == i)[0] for i in range(len(uniq))}
-    idxs = []
-    for _ in range(B):
-        draw = rng.choice(len(uniq), size=len(uniq), replace=True)
-        idxs.append(np.concatenate([per[i] for i in draw]))
-    return idxs
-
-# Estimators ------------------------------------------------------------------
-
-def _sndr_value(mu_pi: np.ndarray, w: np.ndarray, Y: np.ndarray, mu_logged: np.ndarray, idx: np.ndarray) -> float:
-    ww = w[idx]
-    return float(np.mean(mu_pi[idx]) + (np.sum(ww * (Y[idx] - mu_logged[idx])) / (np.sum(ww) + 1e-12)))
-
-def _dr_value(mu_pi: np.ndarray, w: np.ndarray, Y: np.ndarray, mu_logged: np.ndarray, idx: np.ndarray) -> float:
-    ww = w[idx]
-    return float(np.mean(mu_pi[idx] + ww * (Y[idx] - mu_logged[idx])))
-
 # ----------------------- Core evaluation ----------------------
 
-def evaluate_year(
+def fit_year_nuisances(
     year: int,
     X: np.ndarray,
     A: np.ndarray,
@@ -146,8 +104,11 @@ def evaluate_year(
     lon: np.ndarray,
     cfg: OPEConfig,
 ) -> Optional[dict]:
-    """Train nuisances on ≤(year-1); evaluate policy and diagnostics on ==year.
-       Returns per-row arrays for export."""
+    """Fit once per year, then reuse predictions across candidate policies.
+
+    The default strictly excludes evaluation-year labels from all fitted objects.
+    Retrospective same-year cross-fitting is available only by explicit opt-in.
+    """
     test_mask  = (years == year)
     train_mask = (years <  year)
     if not np.any(test_mask) or not np.any(train_mask):
@@ -202,8 +163,12 @@ def evaluate_year(
     uniq_keys = np.unique(site_keys_te)
     rng = np.random.default_rng(SEED)
     rng.shuffle(uniq_keys)
-    buckets = np.array_split(uniq_keys, max(1, cfg.cf_k))
-    folds = [np.where(np.isin(site_keys_te, b))[0] for b in buckets]
+    if cfg.cf_use_eval:
+        buckets = np.array_split(uniq_keys, min(max(1, cfg.cf_k), len(uniq_keys)))
+        folds = [np.where(np.isin(site_keys_te, b))[0] for b in buckets]
+    else:
+        folds = [np.arange(n_te)]
+    fit_audit = []
 
     for test_idx in folds:
         if cfg.cf_use_eval and len(folds) > 1:
@@ -213,14 +178,23 @@ def evaluate_year(
             Yp_fit = np.concatenate([Yp_tr, Yp_te[oof]], axis=0)
             Yy_fit = np.concatenate([Yy_tr, Yy_te[oof]], axis=0)
             years_fit = np.concatenate([years_tr, np.full(len(oof), year, int)])
+            fit_sites = np.concatenate([geo_site_keys(lat_tr, lon_tr), site_keys_te[oof]])
             sw = make_recency_weights(years_fit, cfg.recency_lambda)
         else:
             X_fit, A_fit, Yp_fit, Yy_fit = X_tr, A_tr, Yp_tr, Yy_tr
+            years_fit = years_tr
+            fit_sites = geo_site_keys(lat_tr, lon_tr)
             sw = make_recency_weights(years_tr, cfg.recency_lambda)
 
+        X_fit, X_score, medians = median_impute_from_training(X_fit, X_te[test_idx])
+        fit_audit.append({
+            'fit_years': np.unique(years_fit).astype(int).tolist(),
+            'n_fit': int(len(X_fit)), 'n_score': int(len(test_idx)),
+            'median_imputation': medians.tolist(),
+        })
         # Fit nuisances
-        rew_profit = StackedRewardModel(); rew_profit.fit(X_fit, A_fit, Yp_fit, sample_weight=sw)
-        rew_yield  = StackedRewardModel(); rew_yield.fit( X_fit, A_fit, Yy_fit, sample_weight=sw)
+        rew_profit = StackedRewardModel(); rew_profit.fit(X_fit, A_fit, Yp_fit, sample_weight=sw, groups=fit_sites)
+        rew_yield  = StackedRewardModel(); rew_yield.fit( X_fit, A_fit, Yy_fit, sample_weight=sw, groups=fit_sites)
         pi0 = JointPropensityModel();     pi0.fit(       X_fit, A_fit, bin_edges=binner.bin_edges)
 
         te_rows = test_idx
@@ -232,15 +206,38 @@ def evaluate_year(
             return mu
 
         # PROFIT nuisances
-        mu_grid_profit[te_rows, :]   = _predict_mu_for_rows(rew_profit, X_te[te_rows])
-        mu_logged_profit[te_rows]    = rew_profit.predict(X_te[te_rows], A_te[te_rows])
+        mu_grid_profit[te_rows, :]   = _predict_mu_for_rows(rew_profit, X_score)
+        mu_logged_profit[te_rows]    = rew_profit.predict(X_score, A_te[te_rows])
 
         # YIELD nuisances
-        mu_grid_yield[te_rows, :]    = _predict_mu_for_rows(rew_yield, X_te[te_rows])
-        mu_logged_yield[te_rows]     = rew_yield.predict(X_te[te_rows], A_te[te_rows])
+        mu_grid_yield[te_rows, :]    = _predict_mu_for_rows(rew_yield, X_score)
+        mu_logged_yield[te_rows]     = rew_yield.predict(X_score, A_te[te_rows])
 
         # Shared π0 grid
-        pi0_grid_all[te_rows, :]     = pi0.predict_proba_grid(X_te[te_rows])
+        pi0_grid_all[te_rows, :]     = pi0.predict_proba_grid(X_score)
+
+    return dict(
+        year=int(year), test_indices=test_indices, Yp_te=Yp_te, Yy_te=Yy_te,
+        A_te=A_te, site_keys=site_keys_te, grid=grid, n_bins=n_bins,
+        joint_te=joint_te, counts=counts, support_mask=support_mask,
+        pi0_grid_all=pi0_grid_all, mu_grid_profit=mu_grid_profit,
+        mu_logged_profit=mu_logged_profit, mu_grid_yield=mu_grid_yield,
+        mu_logged_yield=mu_logged_yield,
+        bin_edges={k: v.tolist() for k, v in binner.bin_edges.items()},
+        fit_audit=fit_audit, cf_use_eval=bool(cfg.cf_use_eval),
+    )
+
+
+def apply_policy_to_year(fitted: dict, cfg: OPEConfig) -> dict:
+    """Apply a declared policy to cached, policy-independent model predictions."""
+    year, test_indices = fitted['year'], fitted['test_indices']
+    Yp_te, Yy_te, A_te = fitted['Yp_te'], fitted['Yy_te'], fitted['A_te']
+    grid, n_bins = fitted['grid'], fitted['n_bins']
+    counts, support_mask = fitted['counts'], fitted['support_mask']
+    pi0_grid_all = fitted['pi0_grid_all']
+    mu_grid_profit, mu_logged_profit = fitted['mu_grid_profit'], fitted['mu_logged_profit']
+    mu_grid_yield, mu_logged_yield = fitted['mu_grid_yield'], fitted['mu_logged_yield']
+    n_te = len(Yp_te)
 
     # Build π1 with support + SPIBB guard (using PROFIT expectations)
     def _make_pi1(mu_row: np.ndarray, pi0_row: np.ndarray) -> Tuple[np.ndarray, int]:
@@ -262,7 +259,6 @@ def evaluate_year(
         z = pi1.sum();  pi1 = pi1 / z if z > 0 else support_u
         return pi1, best
 
-    n_te = X_te.shape[0]
     pi1_grid_all = np.zeros_like(pi0_grid_all)
     target_best_idx = np.zeros(n_te, dtype=int)
     for i in range(n_te):
@@ -279,10 +275,7 @@ def evaluate_year(
     with np.errstate(divide='ignore', invalid='ignore'):
         ratio_full_raw = np.where(pi0_grid_all > 0, pi1_grid_all / pi0_grid_all, 0.0)
 
-    AB_te = binner.transform(A_te, action_names=['N','P','K'])
-    def _joint_index_from_AB(AB: np.ndarray, n_bins: Tuple[int,int,int]) -> np.ndarray:
-        return AB[:,0] * (n_bins[1] * n_bins[2]) + AB[:,1] * n_bins[2] + AB[:,2]
-    joint_te_idx = _joint_index_from_AB(AB_te, n_bins)
+    joint_te_idx = fitted['joint_te']
 
     ratio_logged_raw = ratio_full_raw[np.arange(n_te), joint_te_idx]
     ratio_logged_cap = np.clip(ratio_logged_raw, 0.0, cfg.max_density_ratio)
@@ -347,7 +340,10 @@ def evaluate_year(
         count_target=count_target.astype(int),
         keep_mask=keep_mask.astype(bool),
 
-        site_keys=geo_site_keys(lat_te, lon_te, decimals=2),
+        site_keys=fitted['site_keys'],
+        bin_edges=fitted['bin_edges'],
+        fit_audit=fitted['fit_audit'],
+        cf_use_eval=fitted['cf_use_eval'],
 
         # PROFIT outcome (legacy behavior)
         Y=Yp_te.astype(float),
@@ -382,6 +378,11 @@ def evaluate_year(
         ),
     )
     return year_details
+
+def evaluate_year(year, X, A, Y_profit, Y_yield, years, lat, lon, cfg):
+    fitted = fit_year_nuisances(year, X, A, Y_profit, Y_yield, years, lat, lon, cfg)
+    return None if fitted is None else apply_policy_to_year(fitted, cfg)
+
 
 # ------------------- Pooled stats and bootstrap ----------------
 
@@ -462,6 +463,11 @@ def main():
     # Base knobs (match defaults in prior runs)
     p.add_argument('--recency_lambda', type=float, default=0.10)
     p.add_argument('--cf_k', type=int, default=5)
+    p.add_argument('--allow_eval_year_crossfit', action='store_true',
+                   help='Explicitly opt into retrospective same-year cross-fitting.')
+    p.add_argument('--min_support_count', type=int, default=30)
+    p.add_argument('--max_density_ratio', type=float, default=50.0,
+                   help='Weight cap for --weights cap; distinct from overlap exclusion.')
     p.add_argument('--alpha', type=float, default=0.05)
     p.add_argument('--n_bootstrap', type=int, default=1000)
     p.add_argument('--noninferiority_epsilon', type=float, default=0.0)
@@ -492,6 +498,8 @@ def main():
     )
 
     args = p.parse_args()
+    if args.weights == 'psis':
+        require_psis()
 
     os.makedirs(os.path.dirname(args.out_json), exist_ok=True)
     set_random_seeds(SEED)
@@ -504,7 +512,7 @@ def main():
     years = data['year'].astype(int)
     lat = data['lat'] if 'lat' in data else data['Lat']
     lon = data['lon'] if 'lon' in data else data['Long']
-    field_id = data['Field_ID'] if 'Field_ID' in data else None
+    field_id = data['field_id'] if 'field_id' in data else (data['Field_ID'] if 'Field_ID' in data else None)
 
     # Build rewards for policy-learning and OPE
     if args.objective == 'profit':
@@ -529,6 +537,9 @@ def main():
         lambda_mix=args.lambda_mix,
         recency_lambda=args.recency_lambda,
         cf_k=args.cf_k,
+        cf_use_eval=bool(args.allow_eval_year_crossfit),
+        min_support_count=args.min_support_count,
+        max_density_ratio=args.max_density_ratio,
         alpha=args.alpha,
         n_bootstrap=args.n_bootstrap,
         noninferiority_epsilon=args.noninferiority_epsilon,
@@ -724,6 +735,8 @@ def main():
 
     summary = {
         'arguments': vars(args),
+        'training_mode': 'retrospective_same_year_crossfit' if cfg.cf_use_eval else 'past_years_only',
+        'psis_scale': 'preserve_raw_ratio_sum',
         'cohort': cohort_name,
         'weights': 'psis' if use_psis else 'cap',
         'diagnostics': diag,

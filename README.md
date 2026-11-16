@@ -105,6 +105,8 @@ These are the current script locations. Names such as `preprocess.py`, `core.py`
 
 ### Optional local training and evaluation
 
+**Manuscript revision:** start with the [chronological selection and evaluation workflow](docs/revision_evaluation.md). It selects a configuration using 2013–2017, records that choice, and evaluates it separately on 2018 with earlier-year-only model fitting. It also corrects ordinary DR's PSIS weight scaling and requires PSIS explicitly. This is a retrospective reanalysis of previously inspected data; revised scientific results have not yet been generated. The commands below are the legacy exploratory entry points, not the two-stage revision workflow.
+
 Use a separate working copy for experiments. Python 3.12 matches the Docker base image. A frozen research environment and a table-by-table reproduction record are not yet included; the reported findings above should not be interpreted as a claim that a fresh run of this snapshot reproduces every manuscript table.
 
 ```bash
@@ -127,7 +129,7 @@ python scripts/train_models.py \
 
 The activation command above is for Bash. The output directory keeps newly trained models separate from the bundled app artifacts. This standalone training configuration fits through 2017 and holds out 2018; it is distinct from the retrospective by-year OPE procedure. The legacy `--n_trials` argument is retained for CLI compatibility; the current model implementation does not use it to perform a hyperparameter search.
 
-**PSIS prerequisite:** the current `requirements.txt` does not list ArviZ, although the evaluation script uses it. Before attempting a PSIS run, verify ArviZ and the estimator configuration against the original experiment environment. Do not interpret the script's fallback without ArviZ as PSIS evaluation. The DR weight-normalization path also requires reconciliation before claiming exact reproduction of the reported DR results.
+**Research environment:** install `requirements-research.txt` in a separate Python 3.12 environment. PSIS now raises an error if ArviZ is missing. Ordinary DR uses mass-preserving smoothed ratios instead of the former sum-one weights. The OPE default now fits earlier years only; `--allow_eval_year_crossfit` explicitly opts into retrospective same-year cross-fitting. These changes require regenerated results and do not establish exact reproduction of the old tables.
 
 The following documents the existing profit-policy configuration; it is not a substitute for that reproducibility check:
 
@@ -171,3 +173,4 @@ The study uses fixed prices, one fertilizer-regime decision per field-season, an
 - **Technical guidance:** INIFAP, _Agenda Técnica Agrícola de Chiapas_ (2017). [Local reference document](docs/agenda-tecnica-chiapas.pdf).
 
 The dataset and third-party technical guidance remain subject to their respective source terms and attribution requirements.
+

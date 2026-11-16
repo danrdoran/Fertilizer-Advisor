@@ -92,11 +92,11 @@ def _agg_pre_window(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def _encode_temporal(df: pd.DataFrame) -> pd.DataFrame:
+def _encode_temporal(df: pd.DataFrame, defer_imputation: bool = False) -> pd.DataFrame:
     """Encode planting day-of-year as sin/cos; keep Year."""
     out = pd.DataFrame(index=df.index)
     planting = df["Planting"].copy()
-    if planting.isna().any():
+    if planting.isna().any() and not defer_imputation:
         planting = planting.fillna(planting.median())
     theta = 2.0 * np.pi * (planting / 365.25)
     out["planting_sin"] = np.sin(theta)
@@ -191,11 +191,13 @@ def main():
     parser.add_argument("--out", type=str,
                         default="data/processed/processed_data.npz",
                         help="Output .npz path for proessed data.")
+    parser.add_argument("--defer-imputation", action="store_true",
+                        help="Leave missing context values for training-fold-only imputation.")
     args = parser.parse_args()
 
     input_path = Path(args.input)
     out_npz = Path(args.out)
-    aux_dir = Path("data/processed")
+    aux_dir = out_npz.parent
     aux_dir.mkdir(parents=True, exist_ok=True)
     out_npz.parent.mkdir(parents=True, exist_ok=True)
 
@@ -213,7 +215,7 @@ def main():
 
     # -------------------- Build leakage-safe feature set -----------------
     pre_wx     = _agg_pre_window(df)       # (1) Pre-plant aggregates (V1..V6)
-    temporal   = _encode_temporal(df)      # (2) Year + Planting sin/cos
+    temporal   = _encode_temporal(df, defer_imputation=args.defer_imputation)      # (2) Year + Planting sin/cos
     loc_soil   = _encode_location_soils(df)# (3) Location & soils
     cat_ctx    = _encode_categoricals(df)  # (4) System & Tillage (categorical)
 
@@ -224,10 +226,10 @@ def main():
     drop_candidates = [c for group in DROP_FROM_FEATURES.values() for c in group]
     X = X.drop(columns=[c for c in drop_candidates if c in X.columns], errors="ignore")
 
-    # Simple numeric imputation (median) for numeric NaNs (dummies are numeric already)
-    for col in X.columns:
-        if pd.api.types.is_numeric_dtype(X[col]):
-            if X[col].isna().any():
+    # Revision evaluation fits medians separately on each training split.
+    if not args.defer_imputation:
+        for col in X.columns:
+            if pd.api.types.is_numeric_dtype(X[col]) and X[col].isna().any():
                 X[col] = X[col].fillna(X[col].median())
 
     feature_cols = X.columns.tolist()
@@ -247,6 +249,7 @@ def main():
     np.savez_compressed(
         out_npz,
         obs=X.to_numpy(dtype=float),
+        imputation_mode=np.array("deferred" if args.defer_imputation else "global_median"),
         actions=actions,
         reward=reward,
         profit=reward,  # placeholder identical to reward; profit computed later if prices provided
@@ -265,6 +268,7 @@ def main():
     meta = {
         "preprocessing": "pre-planting only (V1..V6), no Mun_yield, no action features; includes System & Tillage in X",
         "input_path": str(input_path),
+        "imputation_mode": "deferred" if args.defer_imputation else "global_median",
         "out_npz": str(out_npz),
         "n_rows": int(len(df)),
         "n_features": int(len(feature_cols)),

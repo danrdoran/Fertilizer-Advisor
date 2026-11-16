@@ -1,0 +1,24 @@
+{
+  "holdout_year": 2018,
+  "selection_start_year": 2013,
+  "n_bootstrap": 1000,
+  "alpha": 0.05,
+  "weights": "psis",
+  "prices": {"maize_price": 3.5, "priceN": 16.0, "priceP": 12.0, "priceK": 8.0},
+  "policy": {
+    "min_support_count": 30,
+    "spibb_min_deviation_count": 60,
+    "trim_pi0_tau": 0.01,
+    "trim_ratio_max": 10.0,
+    "trim_min_count_logged": 30,
+    "trim_min_count_target": 30,
+    "max_density_ratio": 50.0,
+    "recency_lambda": 0.1
+  },
+  "candidates": [
+    {"name": "greedy", "epsilon_explore": 0.0, "lambda_mix": 0.0},
+    {"name": "explore_010", "epsilon_explore": 0.1, "lambda_mix": 0.0},
+    {"name": "mix_025", "epsilon_explore": 0.0, "lambda_mix": 0.25},
+    {"name": "explore_010_mix_025", "epsilon_explore": 0.1, "lambda_mix": 0.25}
+  ]
+}
