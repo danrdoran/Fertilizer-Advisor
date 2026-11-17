@@ -33,13 +33,13 @@ From an existing repository checkout:
 ```bash
 git fetch origin
 git switch revision/independent-policy-evaluation
-python -m venv .venv-research
+python3.12 -m venv .venv-research
 source .venv-research/bin/activate
 python -m pip install -r requirements-research.txt
 python -m unittest discover -s tests -v
 ```
 
-On Windows PowerShell, replace the activation line with `.\.venv-research\Scripts\Activate.ps1`. The remaining Python commands work in either shell. The research requirements pin direct dependencies; each selection manifest also records the actual core library versions used. Preserve a full environment snapshot with `python -m pip freeze` if reproducing the run on another machine.
+On Windows PowerShell, create the environment with `py -3.12 -m venv .venv-research` and activate it with `.\.venv-research\Scripts\Activate.ps1`. The remaining Python commands work in either shell. The research requirements pin direct dependencies; each selection manifest also records the actual core library versions used. Preserve a full environment snapshot with `python -m pip freeze` if reproducing the run on another machine.
 
 Rebuild from the raw workbook; the bundled processed NPZ was globally imputed and is deliberately rejected by this workflow:
 
@@ -60,6 +60,8 @@ python scripts/run_revision_evaluation.py evaluate --selection results/revision_
 ```
 
 Both stage output directories must be new. An interrupted run can leave a partial directory; a complete selection has `selection.json`, which is written last. Retain the failed run for diagnosis and use a new output directory when retrying. Do not change the grid after inspecting final-year results and then present the reused final year as independent confirmation.
+
+After both stages finish, run the [aggregation and economic-accounting audit](revision_audit.md). It first reads the saved files without fitting, then optionally refits and caches the missing predictions to explain aggregation and accounting differences. Keep the original selection and final outputs intact.
 
 ## Files to inspect
 

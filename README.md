@@ -107,6 +107,8 @@ These are the current script locations. Names such as `preprocess.py`, `core.py`
 
 **Manuscript revision:** start with the [chronological selection and evaluation workflow](docs/revision_evaluation.md). It selects a configuration using 2013–2017, records that choice, and evaluates it separately on 2018 with earlier-year-only model fitting. It also corrects ordinary DR's PSIS weight scaling and requires PSIS explicitly. This is a retrospective reanalysis of previously inspected data; revised scientific results have not yet been generated. The commands below are the legacy exploratory entry points, not the two-stage revision workflow.
 
+**After completing that run:** use the [aggregation and economic-accounting audit](docs/revision_audit.md). Its fast command inspects saved results without training; its cached refit command reproduces the original estimates and reconciles pooled versus annual SNDR and yield/profit/fertilizer-cost differences. It preserves the frozen policy and original evaluation sources and labels alternative estimates as exploratory.
+
 Use a separate working copy for experiments. Python 3.12 matches the Docker base image. A frozen research environment and a table-by-table reproduction record are not yet included; the reported findings above should not be interpreted as a claim that a fresh run of this snapshot reproduces every manuscript table.
 
 ```bash
