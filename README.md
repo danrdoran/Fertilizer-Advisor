@@ -109,6 +109,8 @@ These are the current script locations. Names such as `preprocess.py`, `core.py`
 
 **After completing that run:** use the [aggregation and economic-accounting audit](docs/revision_audit.md). Its fast command inspects saved results without training; its cached refit command reproduces the original estimates and reconciles pooled versus annual SNDR and yield/profit/fertilizer-cost differences. It preserves the frozen policy and original evaluation sources and labels alternative estimates as exploratory.
 
+**Next revision package:** use [temporal reliability, fixed actions and simpler-policy comparisons](docs/temporal_robustness.md). A no-fit diagnostic examines forward-year prediction errors, distribution shifts and moving bin boundaries. A separate comparison reuses the audited adaptive predictions, fits a physical grid defined from 2012 alone, and compares the recorded construction rule with guarded greedy and supported argmax policies on matched cohorts. It first reproduces the original point estimates, reports paired within-grid contrasts and behavior-policy calibration diagnostics, and selects no new policy. These post-inspection robustness analyses do not replace the frozen evaluation.
+
 Use a separate working copy for experiments. Python 3.12 matches the Docker base image. A frozen research environment and a table-by-table reproduction record are not yet included; the reported findings above should not be interpreted as a claim that a fresh run of this snapshot reproduces every manuscript table.
 
 ```bash

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "reference_year": 2012,
+  "policies": ["recorded_rule", "guarded_greedy", "supported_argmax"],
+  "reliability_bins": 10,
+  "log_loss_probability_floor": 1e-12,
+  "aggregation_modes": [
+    "pooled_weights_pooled_normalization",
+    "yearwise_weights_yearwise_normalization"
+  ]
+}
